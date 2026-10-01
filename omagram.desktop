@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=omagram
+Comment=Minimalist Telegram client
+Exec=omagram
+Icon=telegram
+Terminal=false
+Categories=Network;InstantMessaging;
+StartupWMClass=omagram
