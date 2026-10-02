@@ -87,7 +87,9 @@ func (s *Store) convertLocked(mc tg.MessageClass) (Message, bool) {
 		if h, ok := m.ReplyTo.(*tg.MessageReplyHeader); ok {
 			out.ReplyTo = h.ReplyToMsgID
 		}
-		if m.Media != nil {
+		if p := inlinePhoto(m.Media); p != nil {
+			out.Photo = p
+		} else if m.Media != nil {
 			if label := mediaLabel(m.Media); label != "" {
 				out.Text = strings.TrimSpace(label + " " + out.Text)
 			}
@@ -138,6 +140,49 @@ func (s *Store) fillSenderLocked(m *Message, from tg.PeerClass) {
 	}
 	if m.Sender == "" {
 		m.Sender = "unknown"
+	}
+}
+
+// inlinePhoto extracts a photo that can be shown inline. Self-destructing
+// and spoiler photos are left to the text label.
+func inlinePhoto(media tg.MessageMediaClass) *Photo {
+	mp, ok := media.(*tg.MessageMediaPhoto)
+	if !ok || mp.Spoiler || mp.TTLSeconds != 0 {
+		return nil
+	}
+	ph, ok := mp.Photo.(*tg.Photo)
+	if !ok {
+		return nil
+	}
+	type size struct {
+		typ  string
+		w, h int
+	}
+	var sizes []size
+	for _, s := range ph.Sizes {
+		switch s := s.(type) {
+		case *tg.PhotoSize:
+			sizes = append(sizes, size{s.Type, s.W, s.H})
+		case *tg.PhotoSizeProgressive:
+			sizes = append(sizes, size{s.Type, s.W, s.H})
+		}
+	}
+	if len(sizes) == 0 {
+		return nil
+	}
+	thumb, full := sizes[0], sizes[0]
+	for _, s := range sizes {
+		long := max(s.w, s.h)
+		if long > max(full.w, full.h) {
+			full = s
+		}
+		if tl := max(thumb.w, thumb.h); (long <= 800 && long > tl) || (tl > 800 && long < tl) {
+			thumb = s
+		}
+	}
+	return &Photo{
+		ID: ph.ID, AccessHash: ph.AccessHash, FileRef: ph.FileReference,
+		W: thumb.w, H: thumb.h, Thumb: thumb.typ, Full: full.typ,
 	}
 }
 

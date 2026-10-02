@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -70,6 +71,9 @@ type UI struct {
 	nameCols int
 	reveal   bool
 
+	imgs        *images
+	photoClicks map[int]*widget.Clickable
+
 	composer widget.Editor
 	search   widget.Editor
 	password widget.Editor
@@ -90,6 +94,8 @@ func Run(cfg config.Config) error {
 	u := &UI{w: w, cfg: cfg, drafts: map[tele.PeerKey]string{}}
 	u.activeK.Store(tele.PeerKey{})
 	u.store = tele.NewStore(w.Invalidate)
+	u.imgs = newImages(filepath.Join(config.CacheDir(), "photos"), w.Invalidate)
+	u.photoClicks = map[int]*widget.Clickable{}
 	shaper := text.NewShaper(text.WithCollection(gofont.Collection()))
 	u.mth = &material.Theme{Shaper: shaper, TextSize: unit.Sp(cfg.FontSize), Face: font.Typeface(cfg.Typeface())}
 	u.composer.Submit = true
@@ -141,7 +147,7 @@ func (u *UI) startClient(ctx context.Context) {
 		if u.focused.Load() && u.activeK.Load().(tele.PeerKey) == ch.Key {
 			return
 		}
-		body := m.Text
+		body := m.Summary()
 		if ch.Key.Kind != tele.KindUser && !ch.Broadcast {
 			body = m.Sender + ": " + body
 		}
@@ -261,6 +267,7 @@ func (u *UI) open(k tele.PeerKey) {
 	u.active, u.selChat = k, k
 	u.activeK.Store(k)
 	u.selMsg, u.replyTo, u.editing = 0, 0, 0
+	clear(u.photoClicks)
 	u.composer.SetText(u.drafts[k])
 	u.composer.SetCaret(u.composer.Len(), u.composer.Len())
 	u.msgList.Position = layout.Position{}
@@ -357,7 +364,7 @@ func (u *UI) handleKeys(gtx layout.Context, ready bool) {
 		key.Filter{Name: "0", Required: key.ModCtrl},
 	}
 	if ready {
-		for _, n := range []key.Name{"J", "K", "G", "H", "L", "I", "R", "E", "Y", "/",
+		for _, n := range []key.Name{"J", "K", "G", "H", "L", "I", "R", "E", "Y", "O", "/",
 			key.NameReturn, key.NameEnter, key.NameUpArrow, key.NameDownArrow, key.NameLeftArrow,
 			key.NameRightArrow, key.NameTab, key.NamePageUp, key.NamePageDown} {
 			filters = append(filters, rk(n))
@@ -483,6 +490,10 @@ func (u *UI) onKey(gtx layout.Context, e key.Event, ready bool) {
 			u.composer.SetCaret(u.composer.Len(), u.composer.Len())
 			u.wantFocus = &u.composer
 		}
+	case "O":
+		if m, ok := u.selected(); ok && m.Photo != nil {
+			u.openPhoto(m.Photo)
+		}
 	case "Y":
 		if m, ok := u.selected(); ok {
 			gtx.Execute(clipboard.WriteCmd{Type: "application/text", Data: io.NopCloser(strings.NewReader(m.Text))})
@@ -490,5 +501,11 @@ func (u *UI) onKey(gtx layout.Context, e key.Event, ready bool) {
 		}
 	case "/":
 		u.wantFocus = &u.search
+	}
+}
+
+func (u *UI) openPhoto(p *tele.Photo) {
+	if c := u.client.Load(); c != nil {
+		u.imgs.open(c, p, u.store.SetStatus)
 	}
 }

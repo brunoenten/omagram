@@ -13,6 +13,7 @@ import (
 	"github.com/gotd/td/telegram"
 	"github.com/gotd/td/telegram/auth"
 	"github.com/gotd/td/telegram/auth/qrlogin"
+	"github.com/gotd/td/telegram/downloader"
 	"github.com/gotd/td/telegram/updates"
 	"github.com/gotd/td/telegram/updates/hook"
 	"github.com/gotd/td/tg"
@@ -252,9 +253,9 @@ func maxID(ms []Message) int {
 
 func preview(m Message) string {
 	if m.Out {
-		return "you: " + m.Text
+		return "you: " + m.Summary()
 	}
-	return m.Text
+	return m.Summary()
 }
 
 func (c *Client) loadDialogs(ctx context.Context) error {
@@ -472,6 +473,25 @@ func (c *Client) Edit(k PeerKey, id int, text string) {
 			s.SetStatus("edit: " + err.Error())
 		}
 	}()
+}
+
+// DownloadPhoto saves the given size of a photo to path.
+func (c *Client) DownloadPhoto(p Photo, size, path string) error {
+	c.Store.mu.RLock()
+	api := c.api
+	c.Store.mu.RUnlock()
+	if api == nil {
+		return errors.New("not connected")
+	}
+	tmp := path + ".part"
+	_, err := downloader.NewDownloader().Download(api, &tg.InputPhotoFileLocation{
+		ID: p.ID, AccessHash: p.AccessHash, FileReference: p.FileRef, ThumbSize: size,
+	}).ToPath(c.ctx, tmp)
+	if err != nil {
+		os.Remove(tmp)
+		return err
+	}
+	return os.Rename(tmp, path)
 }
 
 func randomID() int64 {

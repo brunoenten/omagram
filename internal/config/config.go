@@ -50,6 +50,8 @@ func Path() string { return filepath.Join(xdg("XDG_CONFIG_HOME", ".config"), "om
 
 func DataDir() string { return filepath.Join(xdg("XDG_DATA_HOME", ".local/share"), "omagram") }
 
+func CacheDir() string { return filepath.Join(xdg("XDG_CACHE_HOME", ".cache"), "omagram") }
+
 func StateDir() string { return xdg("XDG_STATE_HOME", ".local/state") }
 
 // Load reads the config file and applies OMAGRAM_API_ID / OMAGRAM_API_HASH overrides.

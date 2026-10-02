@@ -8,6 +8,8 @@ import (
 
 	"gioui.org/layout"
 	"gioui.org/op"
+	"gioui.org/op/clip"
+	"gioui.org/op/paint"
 	"gioui.org/text"
 	"gioui.org/widget"
 	"gioui.org/widget/material"
@@ -376,22 +378,35 @@ func (u *UI) messageRow(gtx layout.Context, it item) layout.Dimensions {
 				}
 				ref := "↳ message"
 				if r, ok := u.store.Message(m.Peer, m.ReplyTo); ok {
-					ref = "↳ " + r.Sender + ": " + oneLine(r.Text)
+					ref = "↳ " + r.Sender + ": " + oneLine(r.Summary())
 				}
 				return u.line(gtx, ref, th.FgFaint)
 			}),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				if m.Service {
+				if m.Photo == nil {
+					return layout.Dimensions{}
+				}
+				return u.photo(gtx, m)
+			}),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				switch {
+				case m.Service:
 					return u.label(gtx, m.Sender+" "+m.Text, th.FgDim)
+				case m.Text == "":
+					return layout.Dimensions{}
 				}
 				return u.label(gtx, m.Text, textC)
 			}),
 		)
 	}
 
+	nameW := u.nameCols
+	if private {
+		nameW = 0
+	}
 	row := func(gtx layout.Context) layout.Dimensions {
 		gtx.Constraints.Min.X = gtx.Constraints.Max.X
-		return u.pad(1, 0.1, func(gtx layout.Context) layout.Dimensions {
+		dims := u.pad(1, 0.1, func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{}.Layout(gtx,
 				layout.Rigid(u.cols(7, func(gtx layout.Context) layout.Dimensions {
 					return u.line(gtx, stamp, th.FgFaint)
@@ -400,7 +415,7 @@ func (u *UI) messageRow(gtx layout.Context, it item) layout.Dimensions {
 					if private {
 						return layout.Dimensions{}
 					}
-					return u.cols(u.nameCols, func(gtx layout.Context) layout.Dimensions {
+					return u.cols(nameW, func(gtx layout.Context) layout.Dimensions {
 						if m.Service {
 							return u.lineAligned(gtx, "*", th.FgFaint, text.End)
 						}
@@ -408,11 +423,17 @@ func (u *UI) messageRow(gtx layout.Context, it item) layout.Dimensions {
 					})(gtx)
 				}),
 				layout.Rigid(u.cols(3, func(gtx layout.Context) layout.Dimensions {
-					return u.lineAligned(gtx, "│", sepC, text.Middle)
+					return layout.Dimensions{Size: image.Pt(0, u.lineH)}
 				})),
 				layout.Flexed(1, body),
 			)
 		})(gtx)
+		// The separator spans the whole row, padding included, so consecutive
+		// messages form one continuous rule.
+		x := (1+7+nameW)*u.charW + u.charW*3/2
+		rule := image.Rect(x, 0, x+max(1, gtx.Dp(1)), dims.Size.Y)
+		paint.FillShape(gtx.Ops, sepC, clip.Rect(rule).Op())
+		return dims
 	}
 	if m.ID == u.selMsg {
 		bg := th.BgLight
@@ -446,7 +467,7 @@ func (u *UI) layoutComposer(gtx layout.Context) layout.Dimensions {
 				case u.replyTo != 0:
 					ctx = "↳ reply"
 					if r, ok := u.store.Message(u.active, u.replyTo); ok {
-						ctx = "↳ replying to " + r.Sender + ": " + oneLine(r.Text)
+						ctx = "↳ replying to " + r.Sender + ": " + oneLine(r.Summary())
 					}
 				default:
 					return layout.Dimensions{}
@@ -489,7 +510,7 @@ func (u *UI) mode(gtx layout.Context) string {
 
 var hints = map[string]string{
 	"CHATS":    "j/k move  enter open  / search  tab messages  ^q quit",
-	"MESSAGES": "j/k select  r reply  e edit  y copy  i write  h chats",
+	"MESSAGES": "j/k select  r reply  e edit  o open  y copy  i write  h chats",
 	"INSERT":   "enter send  shift+enter newline  esc normal",
 	"SEARCH":   "type to filter  enter open  esc cancel",
 }
@@ -644,4 +665,47 @@ func (u *UI) layoutSetup(gtx layout.Context) {
 		)
 	}
 	u.centered(gtx, r("omagram", "accent"), blank, box)
+}
+
+// photo draws an inline photo, scaled to fit the text column, with a
+// same-sized placeholder while it loads.
+func (u *UI) photo(gtx layout.Context, m tele.Message) layout.Dimensions {
+	th, p := u.th, m.Photo
+	maxW := float32(min(gtx.Constraints.Max.X, 52*u.charW))
+	maxH := float32(14 * u.lineH)
+	w, h := float32(max(p.W, 1)), float32(max(p.H, 1))
+	scale := min(maxW/w, maxH/h, gtx.Metric.PxPerDp)
+	size := image.Pt(max(int(w*scale), u.charW), max(int(h*scale), u.lineH))
+
+	click := u.photoClicks[m.ID]
+	if click == nil {
+		click = new(widget.Clickable)
+		u.photoClicks[m.ID] = click
+	}
+	if click.Clicked(gtx) {
+		u.openPhoto(p)
+	}
+
+	e := imgEntry{state: imgFailed}
+	if c := u.client.Load(); c != nil {
+		e = u.imgs.get(c, p)
+	}
+	return layout.Inset{Top: 2, Bottom: 4}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		gtx.Constraints = layout.Exact(size)
+		return click.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			if e.state == imgReady {
+				return widget.Image{Src: e.op, Fit: widget.Fill}.Layout(gtx)
+			}
+			msg := "loading photo…"
+			if e.state == imgFailed {
+				msg = "[photo unavailable]"
+			}
+			return withBg(gtx, th.BgLight, func(gtx layout.Context) layout.Dimensions {
+				return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					gtx.Constraints.Min = image.Point{}
+					return u.line(gtx, msg, th.FgFaint)
+				})
+			})
+		})
+	})
 }

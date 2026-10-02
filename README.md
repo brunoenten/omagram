@@ -23,7 +23,7 @@ live from your active Omarchy theme.
 - Follows `omarchy theme set` without restarting
 - Uses your system monospace font, with fallbacks for symbols and color emoji
 
-Media is shown as text labels (`[photo]`, `[voice 0:12]`, `[file report.pdf]`) for now.
+Photos are shown inline (`o` or a click opens the full size in your image viewer); other media is shown as text labels (`[voice 0:12]`, `[file report.pdf]`) for now.
 
 ## Install
 
@@ -64,7 +64,7 @@ stored in `~/.local/share/omagram/session.json`.
 | Context  | Keys |
 |----------|------|
 | Chats    | `j`/`k` move · `g`/`G` top/bottom · `enter` open · `/` search · `tab` messages |
-| Messages | `j`/`k` select · `r` reply · `e` edit · `y` copy · `i` write · `h` back |
+| Messages | `j`/`k` select · `r` reply · `e` edit · `o` open photo · `y` copy · `i` write · `h` back |
 | Writing  | `enter` send · `shift+enter` newline · `esc` cancel / back |
 | Global   | `ctrl+k` search · `ctrl+=`/`ctrl+-`/`ctrl+0` font size · `ctrl+q` quit |
 

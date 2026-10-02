@@ -49,6 +49,29 @@ type Message struct {
 	ReplyTo  int
 	Edited   bool
 	Service  bool
+	Photo    *Photo
+}
+
+// Photo references a downloadable photo. Thumb is the size shown inline,
+// Full the largest available.
+type Photo struct {
+	ID         int64
+	AccessHash int64
+	FileRef    []byte
+	W, H       int
+	Thumb      string
+	Full       string
+}
+
+// Summary is a one-line, text-only rendering of the message.
+func (m Message) Summary() string {
+	if m.Photo == nil {
+		return m.Text
+	}
+	if m.Text == "" {
+		return "[photo]"
+	}
+	return "[photo] " + m.Text
 }
 
 type AuthState int
