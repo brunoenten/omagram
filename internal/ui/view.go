@@ -397,6 +397,13 @@ func (u *UI) messageRow(gtx layout.Context, it item) layout.Dimensions {
 				}
 				return u.label(gtx, m.Text, textC)
 			}),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions { return u.reactions(gtx, m) }),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				if u.picker != m.ID {
+					return layout.Dimensions{}
+				}
+				return u.pickerLine(gtx)
+			}),
 		)
 	}
 
@@ -435,14 +442,16 @@ func (u *UI) messageRow(gtx layout.Context, it item) layout.Dimensions {
 		paint.FillShape(gtx.Ops, sepC, clip.Rect(rule).Op())
 		return dims
 	}
-	if m.ID == u.selMsg {
-		bg := th.BgLight
-		if u.nav == navMessages {
-			bg = th.Selection
+	return u.reactable(gtx, m, func(gtx layout.Context) layout.Dimensions {
+		if m.ID == u.selMsg {
+			bg := th.BgLight
+			if u.nav == navMessages {
+				bg = th.Selection
+			}
+			return withBg(gtx, bg, row)
 		}
-		return withBg(gtx, bg, row)
-	}
-	return row(gtx)
+		return row(gtx)
+	})
 }
 
 func (u *UI) editor(gtx layout.Context, ed *widget.Editor, hint string) layout.Dimensions {
@@ -498,6 +507,8 @@ func (u *UI) layoutComposer(gtx layout.Context) layout.Dimensions {
 
 func (u *UI) mode(gtx layout.Context) string {
 	switch {
+	case u.picker != 0:
+		return "REACT"
 	case gtx.Focused(&u.composer):
 		return "INSERT"
 	case gtx.Focused(&u.search):
@@ -510,7 +521,8 @@ func (u *UI) mode(gtx layout.Context) string {
 
 var hints = map[string]string{
 	"CHATS":    "j/k move  enter open  / search  tab messages  ^q quit",
-	"MESSAGES": "j/k select  r reply  e edit  o open  y copy  i write  h chats",
+	"MESSAGES": "j/k select  r reply  e edit  + react  o open  y copy  i write  h chats",
+	"REACT":    "1-8 pick  h/l move  enter pick  esc cancel",
 	"INSERT":   "enter send  shift+enter newline  esc normal",
 	"SEARCH":   "type to filter  enter open  esc cancel",
 }

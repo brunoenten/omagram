@@ -136,7 +136,16 @@ func (u *UI) measure(gtx layout.Context) {
 	g.Constraints = layout.Constraints{Max: image.Pt(1<<20, 1<<20)}
 	d := material.Label(u.mth, u.mth.TextSize, "MMMMMMMMMM").Layout(g)
 	rec.Stop()
-	u.charW = max(1, d.Size.X/10)
+	u.charW = max(1, (d.Size.X+9)/10)
 	u.lineH = max(1, d.Size.Y)
 	u.measuredAt = u.mth.TextSize
+}
+
+// emoji renders a single emoji, preferring the color emoji font over the
+// monochrome glyphs many terminal fonts ship.
+func (u *UI) emoji(gtx layout.Context, e string) layout.Dimensions {
+	l := material.Label(u.mth, u.mth.TextSize, e)
+	l.Font.Typeface = "Noto Color Emoji, " + u.mth.Face
+	l.MaxLines = 1
+	return l.Layout(gtx)
 }

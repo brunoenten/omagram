@@ -177,6 +177,10 @@ func (c *Client) registerHandlers(d tg.UpdateDispatcher) {
 		c.onMessage(e, u.Message, true)
 		return nil
 	})
+	d.OnMessageReactions(func(ctx context.Context, e tg.Entities, u *tg.UpdateMessageReactions) error {
+		c.onReactions(u)
+		return nil
+	})
 	d.OnReadHistoryInbox(func(ctx context.Context, e tg.Entities, u *tg.UpdateReadHistoryInbox) error {
 		c.setUnread(keyOf(u.Peer), u.StillUnreadCount)
 		return nil

@@ -19,6 +19,7 @@ live from your active Omarchy theme.
 - QR-code login (scan from the Telegram mobile app), with two-step verification
 - Chat list with unread counts, pinned and muted chats, incremental search
 - Read history with infinite scroll, send, reply, and edit messages
+- Reactions: see them under each message, right-click (or `+`) to react, click one to toggle it
 - Desktop notifications via `notify-send` (mako / Omarchy shell)
 - Follows `omarchy theme set` without restarting
 - Uses your system monospace font, with fallbacks for symbols and color emoji
@@ -64,7 +65,8 @@ stored in `~/.local/share/omagram/session.json`.
 | Context  | Keys |
 |----------|------|
 | Chats    | `j`/`k` move · `g`/`G` top/bottom · `enter` open · `/` search · `tab` messages |
-| Messages | `j`/`k` select · `r` reply · `e` edit · `o` open photo · `y` copy · `i` write · `h` back |
+| Messages | `j`/`k` select · `r` reply · `e` edit · `+` react · `o` open photo · `y` copy · `i` write · `h` back |
+| Reacting | `1`–`8` pick · `h`/`l` move · `enter` pick · `esc` cancel |
 | Writing  | `enter` send · `shift+enter` newline · `esc` cancel / back |
 | Global   | `ctrl+k` search · `ctrl+=`/`ctrl+-`/`ctrl+0` font size · `ctrl+q` quit |
 

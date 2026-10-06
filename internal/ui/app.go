@@ -73,6 +73,11 @@ type UI struct {
 
 	imgs        *images
 	photoClicks map[int]*widget.Clickable
+	reactClicks map[string]*widget.Clickable
+	rowTags     map[int]*rowTag
+	pickClicks  [8]widget.Clickable
+	picker      int
+	pickerSel   int
 
 	composer widget.Editor
 	search   widget.Editor
@@ -96,6 +101,8 @@ func Run(cfg config.Config) error {
 	u.store = tele.NewStore(w.Invalidate)
 	u.imgs = newImages(filepath.Join(config.CacheDir(), "photos"), w.Invalidate)
 	u.photoClicks = map[int]*widget.Clickable{}
+	u.reactClicks = map[string]*widget.Clickable{}
+	u.rowTags = map[int]*rowTag{}
 	shaper := text.NewShaper(text.WithCollection(gofont.Collection()))
 	u.mth = &material.Theme{Shaper: shaper, TextSize: unit.Sp(cfg.FontSize), Face: font.Typeface(cfg.Typeface())}
 	u.composer.Submit = true
@@ -268,6 +275,9 @@ func (u *UI) open(k tele.PeerKey) {
 	u.activeK.Store(k)
 	u.selMsg, u.replyTo, u.editing = 0, 0, 0
 	clear(u.photoClicks)
+	clear(u.reactClicks)
+	clear(u.rowTags)
+	u.picker = 0
 	u.composer.SetText(u.drafts[k])
 	u.composer.SetCaret(u.composer.Len(), u.composer.Len())
 	u.msgList.Position = layout.Position{}
@@ -364,7 +374,8 @@ func (u *UI) handleKeys(gtx layout.Context, ready bool) {
 		key.Filter{Name: "0", Required: key.ModCtrl},
 	}
 	if ready {
-		for _, n := range []key.Name{"J", "K", "G", "H", "L", "I", "R", "E", "Y", "O", "/",
+		for _, n := range []key.Name{"J", "K", "G", "H", "L", "I", "R", "E", "Y", "O", "/", "+", "=",
+			"1", "2", "3", "4", "5", "6", "7", "8",
 			key.NameReturn, key.NameEnter, key.NameUpArrow, key.NameDownArrow, key.NameLeftArrow,
 			key.NameRightArrow, key.NameTab, key.NamePageUp, key.NamePageDown} {
 			filters = append(filters, rk(n))
@@ -402,6 +413,8 @@ func (u *UI) onKey(gtx layout.Context, e key.Event, ready bool) {
 
 	if e.Name == key.NameEscape {
 		switch {
+		case u.picker != 0:
+			u.picker = 0
 		case gtx.Focused(&u.composer):
 			if u.editing != 0 {
 				u.editing = 0
@@ -424,6 +437,19 @@ func (u *UI) onKey(gtx layout.Context, e key.Event, ready bool) {
 	}
 
 	shift := e.Modifiers.Contain(key.ModShift)
+	if u.picker != 0 {
+		switch e.Name {
+		case "1", "2", "3", "4", "5", "6", "7", "8":
+			u.pick(int(e.Name[0] - '1'))
+		case "H", key.NameLeftArrow:
+			u.pickerSel = (u.pickerSel + len(palette) - 1) % len(palette)
+		case "L", key.NameRightArrow, key.NameTab:
+			u.pickerSel = (u.pickerSel + 1) % len(palette)
+		case key.NameReturn, key.NameEnter:
+			u.pick(u.pickerSel)
+		}
+		return
+	}
 	if u.nav == navChats {
 		switch e.Name {
 		case "J", key.NameDownArrow:
@@ -489,6 +515,10 @@ func (u *UI) onKey(gtx layout.Context, e key.Event, ready bool) {
 			u.composer.SetText(m.Text)
 			u.composer.SetCaret(u.composer.Len(), u.composer.Len())
 			u.wantFocus = &u.composer
+		}
+	case "+", "=":
+		if m, ok := u.selected(); ok && !m.Service {
+			u.openPicker(m.ID)
 		}
 	case "O":
 		if m, ok := u.selected(); ok && m.Photo != nil {

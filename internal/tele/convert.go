@@ -87,6 +87,10 @@ func (s *Store) convertLocked(mc tg.MessageClass) (Message, bool) {
 		if h, ok := m.ReplyTo.(*tg.MessageReplyHeader); ok {
 			out.ReplyTo = h.ReplyToMsgID
 		}
+		if mr, ok := m.GetReactions(); ok {
+			prev, _ := s.findLocked(out.Peer, m.ID)
+			out.Reactions = convertReactions(mr, prev.Reactions)
+		}
 		if p := inlinePhoto(m.Media); p != nil {
 			out.Photo = p
 		} else if m.Media != nil {

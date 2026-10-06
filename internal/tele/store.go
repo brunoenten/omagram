@@ -39,17 +39,18 @@ type Chat struct {
 func (c Chat) Muted() bool { return c.MutedUntil > int(time.Now().Unix()) }
 
 type Message struct {
-	ID       int
-	Peer     PeerKey
-	SenderID int64
-	Sender   string
-	Out      bool
-	Date     time.Time
-	Text     string
-	ReplyTo  int
-	Edited   bool
-	Service  bool
-	Photo    *Photo
+	ID        int
+	Peer      PeerKey
+	SenderID  int64
+	Sender    string
+	Out       bool
+	Date      time.Time
+	Text      string
+	ReplyTo   int
+	Edited    bool
+	Service   bool
+	Photo     *Photo
+	Reactions []Reaction
 }
 
 // Photo references a downloadable photo. Thumb is the size shown inline,
