@@ -3,6 +3,7 @@ package tele
 import (
 	"sort"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gotd/td/tg"
@@ -97,6 +98,7 @@ type Auth struct {
 type Store struct {
 	mu       sync.RWMutex
 	onChange func()
+	gen      atomic.Uint64 // bumped on every change; UI refreshes only when it moves
 
 	auth    Auth
 	selfID  int64
@@ -130,10 +132,15 @@ func NewStore(onChange func()) *Store {
 }
 
 func (s *Store) changed() {
+	s.gen.Add(1)
 	if s.onChange != nil {
 		s.onChange()
 	}
 }
+
+// Gen is a monotonic counter of store mutations. The UI uses it to avoid
+// copying chats/messages on every Gio frame (which stalls Wayland pongs).
+func (s *Store) Gen() uint64 { return s.gen.Load() }
 
 func (s *Store) update(f func()) {
 	s.mu.Lock()
