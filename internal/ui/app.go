@@ -77,7 +77,9 @@ type UI struct {
 	refreshKey tele.PeerKey
 
 	imgs        *images
+	files       *files
 	photoClicks map[int]*widget.Clickable
+	fileClicks  map[int]*widget.Clickable
 	reactClicks map[string]*widget.Clickable
 	rowTags     map[int]*rowTag
 	pickClicks  [8]widget.Clickable
@@ -105,7 +107,9 @@ func Run(cfg config.Config) error {
 	u.activeK.Store(tele.PeerKey{})
 	u.store = tele.NewStore(w.Invalidate)
 	u.imgs = newImages(filepath.Join(config.CacheDir(), "photos"), w.Invalidate)
+	u.files = newFiles(config.DownloadsDir(), w.Invalidate)
 	u.photoClicks = map[int]*widget.Clickable{}
+	u.fileClicks = map[int]*widget.Clickable{}
 	u.reactClicks = map[string]*widget.Clickable{}
 	u.rowTags = map[int]*rowTag{}
 	shaper := text.NewShaper(text.WithCollection(gofont.Collection()))
@@ -285,6 +289,7 @@ func (u *UI) open(k tele.PeerKey) {
 	u.activeK.Store(k)
 	u.selMsg, u.replyTo, u.editing = 0, 0, 0
 	clear(u.photoClicks)
+	clear(u.fileClicks)
 	clear(u.reactClicks)
 	clear(u.rowTags)
 	u.picker = 0
@@ -532,8 +537,8 @@ func (u *UI) onKey(gtx layout.Context, e key.Event, ready bool) {
 			u.openPicker(m.ID)
 		}
 	case "O":
-		if m, ok := u.selected(); ok && m.Photo != nil {
-			u.openPhoto(m.Photo)
+		if m, ok := u.selected(); ok {
+			u.openMedia(m)
 		}
 	case "Y":
 		if m, ok := u.selected(); ok {
@@ -548,5 +553,20 @@ func (u *UI) onKey(gtx layout.Context, e key.Event, ready bool) {
 func (u *UI) openPhoto(p *tele.Photo) {
 	if c := u.client.Load(); c != nil {
 		u.imgs.open(c, p, u.store.SetStatus)
+	}
+}
+
+func (u *UI) openFile(f *tele.File) {
+	if c := u.client.Load(); c != nil {
+		u.files.open(c, f, u.store.SetStatus)
+	}
+}
+
+func (u *UI) openMedia(m tele.Message) {
+	switch {
+	case m.Photo != nil:
+		u.openPhoto(m.Photo)
+	case m.File != nil:
+		u.openFile(m.File)
 	}
 }

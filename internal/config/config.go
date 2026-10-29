@@ -52,6 +52,21 @@ func DataDir() string { return filepath.Join(xdg("XDG_DATA_HOME", ".local/share"
 
 func CacheDir() string { return filepath.Join(xdg("XDG_CACHE_HOME", ".cache"), "omagram") }
 
+// DownloadsDir is where saved files land. Prefer XDG_DOWNLOAD_DIR, then the
+// user-dirs Downloads folder, then ~/Downloads.
+func DownloadsDir() string {
+	if v := os.Getenv("XDG_DOWNLOAD_DIR"); v != "" {
+		return filepath.Join(v, "omagram")
+	}
+	if out, err := exec.Command("xdg-user-dir", "DOWNLOAD").Output(); err == nil {
+		if d := strings.TrimSpace(string(out)); d != "" && d != os.Getenv("HOME") {
+			return filepath.Join(d, "omagram")
+		}
+	}
+	home, _ := os.UserHomeDir()
+	return filepath.Join(home, "Downloads", "omagram")
+}
+
 func StateDir() string { return xdg("XDG_STATE_HOME", ".local/state") }
 
 // Load reads the config file and applies OMAGRAM_API_ID / OMAGRAM_API_HASH overrides.

@@ -1,6 +1,7 @@
 package tele
 
 import (
+	"fmt"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -51,6 +52,7 @@ type Message struct {
 	Edited    bool
 	Service   bool
 	Photo     *Photo
+	File      *File
 	Reactions []Reaction
 }
 
@@ -65,15 +67,87 @@ type Photo struct {
 	Full       string
 }
 
+type FileKind uint8
+
+const (
+	FileDoc FileKind = iota + 1
+	FileVoice
+	FileAudio
+	FileVideo
+	FileGIF
+)
+
+// File is a downloadable document attached to a message.
+type File struct {
+	ID         int64
+	AccessHash int64
+	FileRef    []byte
+	Name       string // filename used when saving
+	Title      string // optional display title (e.g. song name)
+	Mime       string
+	Size       int64
+	Duration   float64
+	Kind       FileKind
+}
+
+// Label is the text shown for the attachment, e.g. "[file report.pdf · 1.2 MB]".
+func (f File) Label() string {
+	name := f.Title
+	if name == "" {
+		name = f.Name
+	}
+	switch f.Kind {
+	case FileVoice:
+		return fmt.Sprintf("[voice %s]", formatDuration(f.Duration))
+	case FileAudio:
+		if name != "" {
+			return fmt.Sprintf("[audio %s · %s]", name, formatSize(f.Size))
+		}
+		return fmt.Sprintf("[audio %s]", formatDuration(f.Duration))
+	case FileVideo:
+		return fmt.Sprintf("[video %s · %s]", formatDuration(f.Duration), formatSize(f.Size))
+	case FileGIF:
+		return "[gif · " + formatSize(f.Size) + "]"
+	}
+	if name != "" {
+		return fmt.Sprintf("[file %s · %s]", name, formatSize(f.Size))
+	}
+	return "[file · " + formatSize(f.Size) + "]"
+}
+
 // Summary is a one-line, text-only rendering of the message.
 func (m Message) Summary() string {
-	if m.Photo == nil {
+	var head string
+	switch {
+	case m.Photo != nil:
+		head = "[photo]"
+	case m.File != nil:
+		head = m.File.Label()
+	}
+	switch {
+	case head == "":
 		return m.Text
+	case m.Text == "":
+		return head
 	}
-	if m.Text == "" {
-		return "[photo]"
+	return head + " " + m.Text
+}
+
+func formatSize(n int64) string {
+	switch {
+	case n < 1024:
+		return fmt.Sprintf("%d B", n)
+	case n < 1024*1024:
+		return fmt.Sprintf("%.0f KB", float64(n)/1024)
+	case n < 1024*1024*1024:
+		return fmt.Sprintf("%.1f MB", float64(n)/(1024*1024))
 	}
-	return "[photo] " + m.Text
+	return fmt.Sprintf("%.1f GB", float64(n)/(1024*1024*1024))
+}
+
+func formatDuration(sec float64) string {
+	s := int(sec)
+	return fmt.Sprintf("%d:%02d", s/60, s%60)
 }
 
 type AuthState int

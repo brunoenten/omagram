@@ -389,6 +389,12 @@ func (u *UI) messageRow(gtx layout.Context, it item) layout.Dimensions {
 				return u.photo(gtx, m)
 			}),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				if m.File == nil {
+					return layout.Dimensions{}
+				}
+				return u.fileRow(gtx, m)
+			}),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				switch {
 				case m.Service:
 					return u.label(gtx, m.Sender+" "+m.Text, th.FgDim)
@@ -521,7 +527,7 @@ func (u *UI) mode(gtx layout.Context) string {
 
 var hints = map[string]string{
 	"CHATS":    "j/k move  enter open  / search  tab messages  ^q quit",
-	"MESSAGES": "j/k select  r reply  e edit  + react  o open  y copy  i write  h chats",
+	"MESSAGES": "j/k select  r reply  e edit  + react  o open/save  y copy  i write  h chats",
 	"REACT":    "1-8 pick  h/l move  enter pick  esc cancel",
 	"INSERT":   "enter send  shift+enter newline  esc normal",
 	"SEARCH":   "type to filter  enter open  esc cancel",
@@ -718,6 +724,41 @@ func (u *UI) photo(gtx layout.Context, m tele.Message) layout.Dimensions {
 					return u.line(gtx, msg, th.FgFaint)
 				})
 			})
+		})
+	})
+}
+
+func (u *UI) fileRow(gtx layout.Context, m tele.Message) layout.Dimensions {
+	th, f := u.th, m.File
+	click := u.fileClicks[m.ID]
+	if click == nil {
+		click = new(widget.Clickable)
+		u.fileClicks[m.ID] = click
+	}
+	if click.Clicked(gtx) {
+		u.openFile(f)
+	}
+	e := u.files.get(f.ID)
+	label := f.Label()
+	c := th.Accent
+	switch e.state {
+	case fileDownloading:
+		if e.total > 0 {
+			label = fmt.Sprintf("%s  %d%%", f.Label(), e.done*100/e.total)
+		} else {
+			label = f.Label() + "  …"
+		}
+		c = th.Yellow
+	case fileReady:
+		label = f.Label() + "  ✓"
+		c = th.Green
+	case fileFailed:
+		label = f.Label() + "  failed"
+		c = th.Red
+	}
+	return layout.Inset{Top: 1, Bottom: 2}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		return click.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			return u.line(gtx, label, c)
 		})
 	})
 }

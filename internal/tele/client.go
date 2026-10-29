@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/binary"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"time"
@@ -496,6 +497,56 @@ func (c *Client) DownloadPhoto(p Photo, size, path string) error {
 		return err
 	}
 	return os.Rename(tmp, path)
+}
+
+// DownloadFile saves a document to path. onProgress may be nil; it is called
+// with bytes written so far and the known total size.
+func (c *Client) DownloadFile(f File, path string, onProgress func(done, total int64)) error {
+	c.Store.mu.RLock()
+	api := c.api
+	c.Store.mu.RUnlock()
+	if api == nil {
+		return errors.New("not connected")
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return err
+	}
+	tmp := path + ".part"
+	out, err := os.Create(tmp)
+	if err != nil {
+		return err
+	}
+	w := io.Writer(out)
+	if onProgress != nil {
+		w = &countingWriter{w: out, total: f.Size, on: onProgress}
+	}
+	_, err = downloader.NewDownloader().Download(api, &tg.InputDocumentFileLocation{
+		ID: f.ID, AccessHash: f.AccessHash, FileReference: f.FileRef,
+	}).Stream(c.ctx, w)
+	closeErr := out.Close()
+	if err != nil {
+		os.Remove(tmp)
+		return err
+	}
+	if closeErr != nil {
+		os.Remove(tmp)
+		return closeErr
+	}
+	return os.Rename(tmp, path)
+}
+
+type countingWriter struct {
+	w     io.Writer
+	n     int64
+	total int64
+	on    func(done, total int64)
+}
+
+func (c *countingWriter) Write(p []byte) (int, error) {
+	n, err := c.w.Write(p)
+	c.n += int64(n)
+	c.on(c.n, c.total)
+	return n, err
 }
 
 func randomID() int64 {

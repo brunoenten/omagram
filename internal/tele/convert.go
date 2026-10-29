@@ -93,6 +93,8 @@ func (s *Store) convertLocked(mc tg.MessageClass) (Message, bool) {
 		}
 		if p := inlinePhoto(m.Media); p != nil {
 			out.Photo = p
+		} else if f := attachFile(m.Media); f != nil {
+			out.File = f
 		} else if m.Media != nil {
 			if label := mediaLabel(m.Media); label != "" {
 				out.Text = strings.TrimSpace(label + " " + out.Text)
@@ -190,6 +192,86 @@ func inlinePhoto(media tg.MessageMediaClass) *Photo {
 	}
 }
 
+// attachFile extracts a downloadable document. Stickers, spoilers and
+// self-destructing media stay as text labels.
+func attachFile(media tg.MessageMediaClass) *File {
+	md, ok := media.(*tg.MessageMediaDocument)
+	if !ok || md.Spoiler || md.TTLSeconds != 0 {
+		return nil
+	}
+	doc, ok := md.Document.(*tg.Document)
+	if !ok {
+		return nil
+	}
+	f := &File{
+		ID: doc.ID, AccessHash: doc.AccessHash, FileRef: doc.FileReference,
+		Mime: doc.MimeType, Size: doc.Size, Kind: FileDoc,
+	}
+	for _, a := range doc.Attributes {
+		switch a := a.(type) {
+		case *tg.DocumentAttributeSticker:
+			return nil
+		case *tg.DocumentAttributeAudio:
+			f.Duration = float64(a.Duration)
+			if a.Voice || md.Voice {
+				f.Kind = FileVoice
+			} else {
+				f.Kind = FileAudio
+				f.Title = strings.TrimSpace(a.Performer + " – " + a.Title)
+			}
+		case *tg.DocumentAttributeVideo:
+			f.Duration = a.Duration
+			f.Kind = FileVideo
+		case *tg.DocumentAttributeAnimated:
+			f.Kind = FileGIF
+		case *tg.DocumentAttributeFilename:
+			f.Name = a.FileName
+		}
+	}
+	if md.Video && f.Kind == FileDoc {
+		f.Kind = FileVideo
+	}
+	if md.Voice && f.Kind == FileDoc {
+		f.Kind = FileVoice
+	}
+	if f.Name == "" {
+		if f.Title != "" {
+			f.Name = f.Title
+		} else {
+			f.Name = defaultName(f)
+		}
+	}
+	return f
+}
+
+func defaultName(f *File) string {
+	ext := ""
+	if i := strings.LastIndex(f.Mime, "/"); i >= 0 && i+1 < len(f.Mime) {
+		ext = "." + f.Mime[i+1:]
+		if ext == ".mpeg" {
+			ext = ".mp3"
+		}
+	}
+	switch f.Kind {
+	case FileVoice:
+		return "voice" + orExt(ext, ".ogg")
+	case FileAudio:
+		return "audio" + orExt(ext, ".mp3")
+	case FileVideo:
+		return "video" + orExt(ext, ".mp4")
+	case FileGIF:
+		return "animation" + orExt(ext, ".mp4")
+	}
+	return "file" + orExt(ext, "")
+}
+
+func orExt(ext, fallback string) string {
+	if ext == "" || ext == ".octet-stream" {
+		return fallback
+	}
+	return ext
+}
+
 func mediaLabel(media tg.MessageMediaClass) string {
 	switch m := media.(type) {
 	case *tg.MessageMediaPhoto:
@@ -199,31 +281,11 @@ func mediaLabel(media tg.MessageMediaClass) string {
 		if !ok {
 			return "[file]"
 		}
-		var name string
 		for _, a := range doc.Attributes {
 			switch a := a.(type) {
 			case *tg.DocumentAttributeSticker:
 				return "[sticker " + a.Alt + "]"
-			case *tg.DocumentAttributeAudio:
-				if a.Voice {
-					return fmt.Sprintf("[voice %s]", duration(float64(a.Duration)))
-				}
-				if a.Title != "" {
-					return "[audio " + strings.TrimSpace(a.Performer+" – "+a.Title) + "]"
-				}
-			case *tg.DocumentAttributeVideo:
-				if a.RoundMessage {
-					return fmt.Sprintf("[video message %s]", duration(a.Duration))
-				}
-				return fmt.Sprintf("[video %s]", duration(a.Duration))
-			case *tg.DocumentAttributeAnimated:
-				return "[gif]"
-			case *tg.DocumentAttributeFilename:
-				name = a.FileName
 			}
-		}
-		if name != "" {
-			return "[file " + name + "]"
 		}
 		return "[file]"
 	case *tg.MessageMediaGeo, *tg.MessageMediaGeoLive, *tg.MessageMediaVenue:
@@ -236,11 +298,6 @@ func mediaLabel(media tg.MessageMediaClass) string {
 		return ""
 	}
 	return "[media]"
-}
-
-func duration(sec float64) string {
-	s := int(sec)
-	return fmt.Sprintf("%d:%02d", s/60, s%60)
 }
 
 func actionLabel(a tg.MessageActionClass) string {
