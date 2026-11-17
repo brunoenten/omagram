@@ -26,7 +26,9 @@ live from your active Omarchy theme.
 
 Photos are shown inline. Files, voice notes, audio, video and GIFs download to
 `~/Downloads/omagram/` — press `o` or click the attachment to download and open
-with `xdg-open`. Stickers stay as text labels.
+with `xdg-open`. Stickers stay as text labels. Press `a` to attach a file
+(zenity picker): images send as photos, everything else as a document; composer
+text becomes the caption.
 
 ## Install
 
@@ -67,7 +69,7 @@ stored in `~/.local/share/omagram/session.json`.
 | Context  | Keys |
 |----------|------|
 | Chats    | `j`/`k` move · `g`/`G` top/bottom · `enter` open · `/` search · `tab` messages |
-| Messages | `j`/`k` select · `r` reply · `e` edit · `+` react · `o` open/save · `y` copy · `i` write · `h` back |
+| Messages | `j`/`k` select · `r` reply · `e` edit · `+` react · `o` open · `a` attach · `y` copy · `i` write · `h` back |
 | Reacting | `1`–`8` pick · `h`/`l` move · `enter` pick · `esc` cancel |
 | Writing  | `enter` send · `shift+enter` newline · `esc` cancel / back |
 | Global   | `ctrl+k` search · `ctrl+=`/`ctrl+-`/`ctrl+0` font size · `ctrl+q` quit |
